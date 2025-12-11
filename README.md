@@ -11,9 +11,11 @@ Since DirectX is Windows-specific, Linux games typically use:
 
 This program detects gaming activity by monitoring:
 
-1. **GPU Device Opens** - When processes open `/dev/dri/card*` or `/dev/dri/renderD*`
-2. **DRM ioctl Calls** - Graphics API calls (DirectX → Vulkan → DRM ioctls)
+1. **GPU Device Opens** - When game processes open `/dev/dri/card*` or `/dev/dri/renderD*`
+2. **DRM ioctl Calls** - Graphics API calls from game processes (DirectX → Vulkan → DRM ioctls)
 3. **Game Process Execution** - Wine, Steam, Proton processes starting
+
+**Note:** All events are filtered to only show game-related processes (wine, steam, proton). System processes like Xorg, Wayland compositors, and browsers are ignored.
 
 ## Build
 
@@ -55,18 +57,26 @@ TIME     EVENT      PID     PPID    COMM             DETAILS
 You can modify filtering in `serchgame.bpf.c`:
 
 ### Add More Game Process Names
-Edit lines 113-118 to add more process names to detect:
+Edit the `is_game_related_process()` function (lines 17-32) to add more process names:
 ```c
-// Example: Add detection for "lutris"
-else if (comm[0] == 'l' && comm[1] == 'u' && comm[2] == 't' && comm[3] == 'r' && comm[4] == 'i' && comm[5] == 's')
-    is_game_related = true;
+// Example: Add detection for "lutris" or "gamescope"
+if (comm[0] == 'l' && comm[1] == 'u' && comm[2] == 't' && comm[3] == 'r' && comm[4] == 'i' && comm[5] == 's')
+    return true;
+if (comm[0] == 'g' && comm[1] == 'a' && comm[2] == 'm' && comm[3] == 'e')
+    return true;
 ```
 
 ### Remove Process Filtering
-To track ALL GPU activity (not just games), set `is_game_related = true;` at line 110 instead of doing the checks.
+To track ALL GPU activity (not just games), modify `is_game_related_process()` to always return `true`:
+```c
+static __always_inline bool is_game_related_process(void)
+{
+    return true;  // Track all processes
+}
+```
 
 ### Modify ioctl Filtering
-Edit line 54 in `serchgame.bpf.c` to change which ioctl commands are captured.
+Edit line 105 in `serchgame.bpf.c` to change which ioctl commands are captured.
 
 After making changes, rebuild with `make`.
 

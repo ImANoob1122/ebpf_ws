@@ -14,6 +14,25 @@ struct {
 
 const volatile unsigned long long min_duration_ns = 0;
 
+static __always_inline bool is_game_related_process(void)
+{
+	char comm[TASK_COMM_LEN];
+
+	bpf_get_current_comm(&comm, sizeof(comm));
+
+	// Check for wine, steam, proton, etc.
+	if (comm[0] == 'w' && comm[1] == 'i' && comm[2] == 'n' && comm[3] == 'e')
+		return true;
+	if (comm[0] == 's' && comm[1] == 't' && comm[2] == 'e' && comm[3] == 'a' && comm[4] == 'm' && comm[5] == 'w' && comm[6] == 'e' && comm[7] == 'b')
+		return false;
+	if (comm[0] == 's' && comm[1] == 't' && comm[2] == 'e' && comm[3] == 'a' && comm[4] == 'm')
+		return true;
+	if (comm[0] == 'p' && comm[1] == 'r' && comm[2] == 'o' && comm[3] == 't' && comm[4] == 'o' && comm[5] == 'n')
+		return true;
+
+	return false;
+}
+
 static __always_inline bool is_gpu_device(const char *filename)
 {
 	char prefix[9];
@@ -52,6 +71,10 @@ int handle_openat(struct trace_event_raw_sys_enter *ctx)
 	const char *filename = (const char *)ctx->args[1];
 	struct event *e;
 
+	// Filter: only track GPU device opens from game-related processes
+	if (!is_game_related_process())
+		return 0;
+
 	if (!is_gpu_device(filename))
 		return 0;
 
@@ -74,6 +97,10 @@ int handle_ioctl(struct trace_event_raw_sys_enter *ctx)
 {
 	struct event *e;
 	unsigned int cmd = (unsigned int)ctx->args[1];
+
+	// Filter: only track ioctls from game-related processes
+	if (!is_game_related_process())
+		return 0;
 
 	// Filter for DRM ioctls (major number 0x64 'd')
 	// DRM ioctl commands are in range 0x6400 - 0x64FF
@@ -100,24 +127,9 @@ int handle_exec(struct trace_event_raw_sched_process_exec *ctx)
 	struct task_struct *task;
 	struct event *e;
 	unsigned fname_off;
-	char comm[TASK_COMM_LEN];
 
-	// Get the command name
-	bpf_get_current_comm(&comm, sizeof(comm));
-
-	// Filter for common game-related processes
-	// You can expand this list or remove filtering
-	bool is_game_related = false;
-
-	// Check for wine, steam, proton, etc.
-	if (comm[0] == 'w' && comm[1] == 'i' && comm[2] == 'n' && comm[3] == 'e')
-		is_game_related = true;
-	else if (comm[0] == 's' && comm[1] == 't' && comm[2] == 'e' && comm[3] == 'a' && comm[4] == 'm')
-		is_game_related = true;
-	else if (comm[0] == 'p' && comm[1] == 'r' && comm[2] == 'o' && comm[3] == 't' && comm[4] == 'o' && comm[5] == 'n')
-		is_game_related = true;
-
-	if (!is_game_related)
+	// Filter for game-related process execution
+	if (!is_game_related_process())
 		return 0;
 
 	task = (struct task_struct *)bpf_get_current_task();
