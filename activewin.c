@@ -167,21 +167,46 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	/* Attach uprobe to XSetInputFocus in libX11.so.6 */
+	/* Attach uprobe to xcb_set_input_focus in libxcb.so.1 (for KWin and modern apps) */
+	uprobe_opts.func_name = "xcb_set_input_focus";
+	uprobe_opts.retprobe = false;
+
+	skel->links.handle_xcb_set_input_focus = bpf_program__attach_uprobe_opts(
+		skel->progs.handle_xcb_set_input_focus,
+		-1,  // All processes (system-wide)
+		"/lib/x86_64-linux-gnu/libxcb.so.1",
+		0,   // Offset (auto-resolved by function name)
+		&uprobe_opts
+	);
+
+	if (!skel->links.handle_xcb_set_input_focus) {
+		fprintf(stderr, "Warning: Failed to attach uprobe to xcb_set_input_focus: %s\n", strerror(errno));
+		fprintf(stderr, "Continuing with Xlib only...\n");
+	} else if (env.verbose) {
+		printf("Successfully attached uprobe to xcb_set_input_focus (XCB)\n");
+	}
+
+	/* Attach uprobe to XSetInputFocus in libX11.so.6 (for compatibility with Xlib apps) */
 	uprobe_opts.func_name = "XSetInputFocus";
 	uprobe_opts.retprobe = false;
 
-	skel->links.handle_set_input_focus = bpf_program__attach_uprobe_opts(
-		skel->progs.handle_set_input_focus,
+	skel->links.handle_xlib_set_input_focus = bpf_program__attach_uprobe_opts(
+		skel->progs.handle_xlib_set_input_focus,
 		-1,  // All processes (system-wide)
 		"/lib/x86_64-linux-gnu/libX11.so.6",
 		0,   // Offset (auto-resolved by function name)
 		&uprobe_opts
 	);
 
-	if (!skel->links.handle_set_input_focus) {
-		fprintf(stderr, "Failed to attach uprobe to XSetInputFocus\n");
-		fprintf(stderr, "Make sure /lib/x86_64-linux-gnu/libX11.so.6 exists\n");
+	if (!skel->links.handle_xlib_set_input_focus) {
+		fprintf(stderr, "Warning: Failed to attach uprobe to XSetInputFocus: %s\n", strerror(errno));
+	} else if (env.verbose) {
+		printf("Successfully attached uprobe to XSetInputFocus (Xlib)\n");
+	}
+
+	// At least one probe must succeed
+	if (!skel->links.handle_xcb_set_input_focus && !skel->links.handle_xlib_set_input_focus) {
+		fprintf(stderr, "Failed to attach to any focus function\n");
 		err = 1;
 		goto cleanup;
 	}
