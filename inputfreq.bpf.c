@@ -71,20 +71,24 @@ static __always_inline bool is_input_device(struct file *file)
 
 	dev = BPF_CORE_READ(inode, i_rdev);
 
-	// Extract major and minor numbers
-	// Linux uses: major = (dev >> 20) | ((dev >> 8) & 0xfff)
-	//             minor = (dev & 0xff) | ((dev >> 12) & 0xfff00)
-	// For simplicity, try the standard encoding
-	major = (dev >> 8) & 0xff;
-	minor = dev & 0xff;
+	// Linux kernel dev_t encoding (from include/linux/kdev_t.h):
+	// MAJOR: (dev >> 20) | ((dev >> 8) & 0xfff)
+	// MINOR: (dev & 0xff) | ((dev >> 12) & 0xfff00)
+	major = ((unsigned int)((dev) >> 20)) | ((unsigned int)((dev) >> 8) & 0xfff);
+	minor = ((unsigned int)((dev) & 0xff)) | ((unsigned int)(((dev) >> 12) & 0xfff00));
 
 	// Debug: print major/minor for character devices
 	if (dev != 0) {
-		bpf_printk("Device: major=%u minor=%u dev=0x%x", major, minor, dev);
+		bpf_printk("FD check: dev=0x%llx major=%u minor=%u", (unsigned long long)dev, major, minor);
 	}
 
 	// Input devices have major number 13 (INPUT_MAJOR)
-	return major == 13;
+	if (major == 13) {
+		bpf_printk("Found input device! major=13 minor=%u", minor);
+		return true;
+	}
+
+	return false;
 }
 
 SEC("tracepoint/syscalls/sys_enter_read")
@@ -139,8 +143,10 @@ int handle_read_exit(struct trace_event_raw_sys_exit *ctx)
 
 	// Get file structure for this FD
 	file = get_file_from_fd(task, fd);
-	if (!file)
+	if (!file) {
+		// This is normal - happens when file is null
 		return 0;
+	}
 
 	// Check if it's an input device
 	if (!is_input_device(file))
@@ -150,13 +156,17 @@ int handle_read_exit(struct trace_event_raw_sys_exit *ctx)
 	// Each input_event structure is INPUT_EVENT_SIZE bytes
 	num_events = bytes_read / INPUT_EVENT_SIZE;
 
+	bpf_printk("Input events detected: %llu events (%ld bytes)", num_events, bytes_read);
+
 	if (num_events == 0)
 		return 0;
 
 	// Update counter atomically
 	counter = bpf_map_lookup_elem(&event_counter, &key);
-	if (counter)
+	if (counter) {
 		__sync_fetch_and_add(counter, num_events);
+		bpf_printk("Counter updated: +%llu events", num_events);
+	}
 
 	return 0;
 }
