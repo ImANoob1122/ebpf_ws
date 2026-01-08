@@ -15,14 +15,13 @@ static struct env {
 
 const char *argp_program_version = "serchgame 1.0";
 const char *argp_program_bug_address = "<your@email.com>";
-const char argp_program_doc[] =
-"BPF serchgame - Detect game activity via GPU/graphics calls\n"
-"\n"
-"USAGE: ./serchgame [-v] [-d <min-duration-ms>]\n"
-"\n"
-"EXAMPLES:\n"
-"    ./serchgame             # trace all GPU activity\n"
-"    ./serchgame -v          # verbose output with libbpf debug\n";
+const char argp_program_doc[] = "BPF serchgame - Detect game activity via GPU/graphics calls\n"
+				"\n"
+				"USAGE: ./serchgame [-v] [-d <min-duration-ms>]\n"
+				"\n"
+				"EXAMPLES:\n"
+				"    ./serchgame             # trace all GPU activity\n"
+				"    ./serchgame -v          # verbose output with libbpf debug\n";
 
 static const struct argp_option opts[] = {
 	{ "verbose", 'v', NULL, 0, "Verbose debug output" },
@@ -82,6 +81,10 @@ static const char *event_type_str(enum event_type type)
 		return "GPU_IOCTL";
 	case EVENT_PROCESS_EXEC:
 		return "PROC_EXEC";
+	case EVENT_POLL:
+		return "POLL";
+	case EVENT_EPOLL_WAIT:
+		return "EPOLL_WAIT";
 	default:
 		return "UNKNOWN";
 	}
@@ -100,19 +103,21 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 	switch (e->type) {
 	case EVENT_GPU_OPEN:
-		printf("%-8s %-10s %-7d %-7d %-16s %s\n",
-		       ts, event_type_str(e->type), e->pid, e->ppid,
-		       e->comm, e->filename);
+		printf("%-8s %-10s %-7d %-7d %-16s %s\n", ts, event_type_str(e->type), e->pid,
+		       e->ppid, e->comm, e->filename);
 		break;
 	case EVENT_GPU_IOCTL:
-		printf("%-8s %-10s %-7d %-7d %-16s ioctl_cmd=0x%x\n",
-		       ts, event_type_str(e->type), e->pid, e->ppid,
-		       e->comm, e->ioctl_cmd);
+		printf("%-8s %-10s %-7d %-7d %-16s ioctl_cmd=0x%x\n", ts, event_type_str(e->type),
+		       e->pid, e->ppid, e->comm, e->ioctl_cmd);
 		break;
 	case EVENT_PROCESS_EXEC:
-		printf("%-8s %-10s %-7d %-7d %-16s %s\n",
-		       ts, event_type_str(e->type), e->pid, e->ppid,
-		       e->comm, e->filename);
+		printf("%-8s %-10s %-7d %-7d %-16s %s\n", ts, event_type_str(e->type), e->pid,
+		       e->ppid, e->comm, e->filename);
+		break;
+	case EVENT_POLL:
+	case EVENT_EPOLL_WAIT:
+		printf("%-8s %-10s %-7d %-7d %-16s nfds=%d\n", ts, event_type_str(e->type), e->pid,
+		       e->ppid, e->comm, e->nfds);
 		break;
 	}
 
@@ -173,8 +178,8 @@ int main(int argc, char **argv)
 	}
 
 	printf("Successfully started! Detecting game activity...\n");
-	printf("%-8s %-10s %-7s %-7s %-16s %s\n",
-	       "TIME", "EVENT", "PID", "PPID", "COMM", "DETAILS");
+	printf("%-8s %-10s %-7s %-7s %-16s %s\n", "TIME", "EVENT", "PID", "PPID", "COMM",
+	       "DETAILS");
 
 	/* Process events */
 	while (!exiting) {

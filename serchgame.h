@@ -3,12 +3,14 @@
 #define __SERCHGAME_H
 
 #define TASK_COMM_LEN 16
-#define PATH_MAX_LEN 256
+#define PATH_MAX_LEN  256
 
 enum event_type {
 	EVENT_GPU_OPEN = 1,
 	EVENT_GPU_IOCTL = 2,
 	EVENT_PROCESS_EXEC = 3,
+	EVENT_POLL = 4,
+	EVENT_EPOLL_WAIT = 5,
 };
 
 struct event {
@@ -20,6 +22,7 @@ struct event {
 	char filename[PATH_MAX_LEN];
 	unsigned int ioctl_cmd;
 	int exit_code;
+	int nfds;
 };
 
 #endif /* __SERCHGAME_H */

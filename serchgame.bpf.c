@@ -23,14 +23,16 @@ static __always_inline bool is_game_related_process(void)
 	// Check for wine, steam, proton, etc.
 	if (comm[0] == 'w' && comm[1] == 'i' && comm[2] == 'n' && comm[3] == 'e')
 		return true;
-	if (comm[0] == 's' && comm[1] == 't' && comm[2] == 'e' && comm[3] == 'a' && comm[4] == 'm' && comm[5] == 'w' && comm[6] == 'e' && comm[7] == 'b')
+	if (comm[0] == 's' && comm[1] == 't' && comm[2] == 'e' && comm[3] == 'a' &&
+	    comm[4] == 'm' && comm[5] == 'w' && comm[6] == 'e' && comm[7] == 'b')
 		return false;
 	if (comm[0] == 's' && comm[1] == 't' && comm[2] == 'e' && comm[3] == 'a' && comm[4] == 'm')
 		return true;
-	if (comm[0] == 'p' && comm[1] == 'r' && comm[2] == 'o' && comm[3] == 't' && comm[4] == 'o' && comm[5] == 'n')
+	if (comm[0] == 'p' && comm[1] == 'r' && comm[2] == 'o' && comm[3] == 't' &&
+	    comm[4] == 'o' && comm[5] == 'n')
 		return true;
 
-	return false;
+	return true;
 }
 
 static __always_inline bool is_gpu_device(const char *filename)
@@ -41,9 +43,8 @@ static __always_inline bool is_gpu_device(const char *filename)
 	bpf_probe_read_user_str(&prefix, sizeof(prefix), filename);
 
 	// Check if it starts with "/dev/dri"
-	if (prefix[0] == '/' && prefix[1] == 'd' && prefix[2] == 'e' &&
-	    prefix[3] == 'v' && prefix[4] == '/' && prefix[5] == 'd' &&
-	    prefix[6] == 'r' && prefix[7] == 'i') {
+	if (prefix[0] == '/' && prefix[1] == 'd' && prefix[2] == 'e' && prefix[3] == 'v' &&
+	    prefix[4] == '/' && prefix[5] == 'd' && prefix[6] == 'r' && prefix[7] == 'i') {
 		return true;
 	}
 
@@ -151,6 +152,106 @@ int handle_exec(struct trace_event_raw_sched_process_exec *ctx)
 	fname_off = ctx->__data_loc_filename & 0xFFFF;
 	bpf_probe_read_str(&e->filename, sizeof(e->filename), (void *)ctx + fname_off);
 
+	e->ioctl_cmd = 0;
+	e->exit_code = 0;
+
+	bpf_ringbuf_submit(e, 0);
+	return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_poll")
+int handle_poll(struct trace_event_raw_sys_enter *ctx)
+{
+	struct event *e;
+	int nfds = (int)ctx->args[1];
+
+	// Filter: only track poll from game-related processes
+	if (!is_game_related_process())
+		return 0;
+
+	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+	if (!e)
+		return 0;
+
+	e->type = EVENT_POLL;
+	fill_common_fields(e);
+	e->nfds = nfds;
+	e->filename[0] = '\0';
+	e->ioctl_cmd = 0;
+	e->exit_code = 0;
+
+	bpf_ringbuf_submit(e, 0);
+	return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_ppoll")
+int handle_ppoll(struct trace_event_raw_sys_enter *ctx)
+{
+	struct event *e;
+	int nfds = (int)ctx->args[1];
+
+	// Filter: only track ppoll from game-related processes
+	if (!is_game_related_process())
+		return 0;
+
+	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+	if (!e)
+		return 0;
+
+	e->type = EVENT_POLL;
+	fill_common_fields(e);
+	e->nfds = nfds;
+	e->filename[0] = '\0';
+	e->ioctl_cmd = 0;
+	e->exit_code = 0;
+
+	bpf_ringbuf_submit(e, 0);
+	return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_epoll_wait")
+int handle_epoll_wait(struct trace_event_raw_sys_enter *ctx)
+{
+	struct event *e;
+	int maxevents = (int)ctx->args[2];
+
+	// Filter: only track epoll_wait from game-related processes
+	if (!is_game_related_process())
+		return 0;
+
+	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+	if (!e)
+		return 0;
+
+	e->type = EVENT_EPOLL_WAIT;
+	fill_common_fields(e);
+	e->nfds = maxevents;
+	e->filename[0] = '\0';
+	e->ioctl_cmd = 0;
+	e->exit_code = 0;
+
+	bpf_ringbuf_submit(e, 0);
+	return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_epoll_pwait")
+int handle_epoll_pwait(struct trace_event_raw_sys_enter *ctx)
+{
+	struct event *e;
+	int maxevents = (int)ctx->args[2];
+
+	// Filter: only track epoll_pwait from game-related processes
+	if (!is_game_related_process())
+		return 0;
+
+	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
+	if (!e)
+		return 0;
+
+	e->type = EVENT_EPOLL_WAIT;
+	fill_common_fields(e);
+	e->nfds = maxevents;
+	e->filename[0] = '\0';
 	e->ioctl_cmd = 0;
 	e->exit_code = 0;
 
