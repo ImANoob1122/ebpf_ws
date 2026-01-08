@@ -32,7 +32,7 @@ static __always_inline bool is_game_related_process(void)
 	    comm[4] == 'o' && comm[5] == 'n')
 		return true;
 
-	return true;
+	return false;
 }
 
 static __always_inline bool is_gpu_device(const char *filename)

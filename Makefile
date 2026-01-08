@@ -18,7 +18,7 @@ INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = serchgame activewin inputfreq
+APPS = serchgame activewin inputfreq gamedetect
 
 # Get Clang's default includes on this system
 CLANG_BPF_SYS_INCLUDES ?= $(shell $(CLANG) -v -E - </dev/null 2>&1 \
@@ -93,7 +93,7 @@ $(OUTPUT)/%.o: %.c $(wildcard %.h) | $(OUTPUT)
 # Build application binary
 $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
-	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz $(if $(filter activewin,$@),-lX11) -o $@
+		$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz $(if $(filter activewin gamedetect,$@),-lX11) -o $@
 
 # delete failed targets
 .DELETE_ON_ERROR:
