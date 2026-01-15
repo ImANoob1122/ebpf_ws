@@ -228,13 +228,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 
 	switch (e->type) {
 	case GAME_EVENT_START:
-		printf("🎮 GAME_START: pid=%d ppid=%d comm=%s filename=%s\n", e->pid, e->ppid,
-		       e->comm, e->filename);
+		printf("GAME_START: pid=%d ppid=%d comm=%s filename=%s\n", e->pid, e->ppid, e->comm,
+		       e->filename);
 		add_game_pid(e->pid, e->comm);
 		break;
 	case GAME_EVENT_EXIT:
-		printf("🛑 GAME_EXIT:  pid=%d comm=%s exit_code=%d\n", e->pid, e->comm,
-		       e->exit_code);
+		printf("GAME_EXIT:  pid=%d comm=%s exit_code=%d\n", e->pid, e->comm, e->exit_code);
 		remove_game_pid(e->pid);
 
 		/* Check if current game exited */
@@ -243,7 +242,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz)
 			current_game_pid = -1;
 			current_game_window[0] = '\0';
 			print_timestamp();
-			printf("📴 STATUS: Not playing\n");
+			printf("STATUS: Not playing\n");
 		}
 		break;
 	}
@@ -348,12 +347,12 @@ int main(int argc, char **argv)
 					if (is_playing) {
 						strncpy(current_game_window, title,
 							sizeof(current_game_window) - 1);
-						printf("🎮 STATUS: PLAYING! [%s] pid=%d window=\"%s\"\n",
+						printf("STATUS: PLAYING! [%s] pid=%d window=\"%s\"\n",
 						       get_game_name(window_pid), window_pid,
 						       title);
 					} else {
 						current_game_window[0] = '\0';
-						printf("📴 STATUS: Not playing (active: pid=%d \"%s\")\n",
+						printf("STATUS: Not playing (active: pid=%d \"%s\")\n",
 						       window_pid, title);
 					}
 				}
@@ -364,7 +363,7 @@ int main(int argc, char **argv)
 		usleep(90000); /* ~90ms + 10ms poll = ~100ms cycle */
 	}
 
-	printf("\n📊 Final Status: %s\n", is_playing ? "Was playing" : "Not playing");
+	printf("\nFinal Status: %s\n", is_playing ? "Was playing" : "Not playing");
 	printf("Tracked %d game process(es)\n", num_game_pids);
 
 cleanup:

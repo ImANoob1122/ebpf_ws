@@ -120,27 +120,33 @@ int handle_exit(struct trace_event_raw_sched_process_template *ctx)
 {
 	struct task_struct *task;
 	struct game_event *e;
-	int pid;
+	int tgid, tid;
 	int *found;
 	int exit_code;
 
 	task = (struct task_struct *)bpf_get_current_task();
-	pid = BPF_CORE_READ(task, tgid);
+	tgid = BPF_CORE_READ(task, tgid); // Process ID (main thread)
+	tid = BPF_CORE_READ(task, pid); // Thread ID
+
+	// Only track main process exits, not thread exits
+	// Thread exit: tid != tgid
+	if (tid != tgid)
+		return 0;
 
 	// Check if this PID was tracked as a game process
-	found = bpf_map_lookup_elem(&game_pids, &pid);
+	found = bpf_map_lookup_elem(&game_pids, &tgid);
 	if (!found)
 		return 0;
 
 	// Remove from tracking map
-	bpf_map_delete_elem(&game_pids, &pid);
+	bpf_map_delete_elem(&game_pids, &tgid);
 
 	e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
 	if (!e)
 		return 0;
 
 	e->type = GAME_EVENT_EXIT;
-	e->pid = pid;
+	e->pid = tgid;
 	e->ppid = BPF_CORE_READ(task, real_parent, tgid);
 
 	u64 uid_gid = bpf_get_current_uid_gid();
