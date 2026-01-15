@@ -18,7 +18,7 @@ INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = serchgame activewin inputfreq gamedetect gamedetect2
+APPS = serchgame activewin inputfreq gamedetect gamedetect2 gamedetect3
 
 # Get Clang's default includes on this system
 CLANG_BPF_SYS_INCLUDES ?= $(shell $(CLANG) -v -E - </dev/null 2>&1 \
